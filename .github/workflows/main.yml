@@ -1,0 +1,66 @@
+name: Zip Dosyasini Ac ve mrendlesscr Olarak Derle
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Kodlari Cek
+      uses: actions/checkout@v4
+
+    - name: Java 17 Kur
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Depodaki Zip Dosyasını Bul ve İçini Tamamen Aç
+      run: |
+        if ls *.zip 1> /dev/null 2>&1; then
+          echo "Zip dosyasi bulundu, icerik cikartiliyor..."
+          unzip -o *.zip
+          rm *.zip
+          
+          # EĞER ZIP İÇİNDEN TEK BİR KLASÖR ÇIKTIYSA, İÇİNDEKİLERİ ANA DİZİNE TAŞI
+          # Bu sayede gradlew dosyasının yeri kaybolmaz
+          if [ $(ls -1 | wc -l) -eq 1 ] && [ -d *(.) ]; then
+            echo "Dosyalar alt klasorde kalmis, ana dizine tasiniyor..."
+            mv */* . 2>/dev/null || true
+            mv */.* . 2>/dev/null || true
+          fi
+        else
+          echo "Ana dizinde herhangi bir zip dosyasi bulunamadi!"
+        fi
+
+    - name: Gradle Yetkisi Ver
+      run: |
+        # gradlew dosyasını bulamazsa aramayı dener
+        if [ ! -f gradlew ]; then
+          echo "gradlew ana dizinde bulunamadi, alt klasorler taraniyor..."
+          find . -name "gradlew" -exec mv {} . \;
+        fi
+        chmod +x gradlew
+
+    - name: Modu Paketle (Jar Olustur)
+      run: ./gradlew build
+
+    - name: Benzersiz Versiyon Etiketi Olustur
+      id: tag
+      run: echo "TAG_NAME=v1.0.0-${{ github.run_number }}" >> $GITHUB_ENV
+
+    - name: Sikistirmadan Direkt Ham Jar Dosyasini Yayinla
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        name: Mr. Endless Cursor Sürümü #${{ github.run_number }}
+        draft: false
+        prerelease: false
+        files: build/libs/*.jar
+        
