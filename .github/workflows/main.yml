@@ -23,25 +23,28 @@ jobs:
 
     - name: Depodaki Zip Dosyasını Bul ve İçini Tamamen Aç
       run: |
+        # Klasörde herhangi bir zip dosyası var mı diye kontrol et
         if ls *.zip 1> /dev/null 2>&1; then
           echo "Zip dosyasi bulundu, icerik cikartiliyor..."
           unzip -o *.zip
           rm *.zip
           
-          # EĞER ZIP İÇİNDEN TEK BİR KLASÖR ÇIKTIYSA, İÇİNDEKİLERİ ANA DİZİNE TAŞI
-          # Bu sayede gradlew dosyasının yeri kaybolmaz
-          if [ $(ls -1 | wc -l) -eq 1 ] && [ -d *(.) ]; then
-            echo "Dosyalar alt klasorde kalmis, ana dizine tasiniyor..."
-            mv */* . 2>/dev/null || true
-            mv */.* . 2>/dev/null || true
-          fi
+          # Hata veren parantezli kod yerine standart döngü ile alt klasör kontrolü yapıyoruz
+          for dir in *; do
+            if [ -d "$dir" ] && [ "$dir" != "src" ] && [ "$dir" != "gradle" ]; then
+              echo "Dosyalar bir alt klasorde kalmis, ana dizine cikartiliyor..."
+              mv "$dir"/* . 2>/dev/null || true
+              mv "$dir"/.* . 2>/dev/null || true
+              break
+            fi
+          done
         else
           echo "Ana dizinde herhangi bir zip dosyasi bulunamadi!"
         fi
 
     - name: Gradle Yetkisi Ver
       run: |
-        # gradlew dosyasını bulamazsa aramayı dener
+        # gradlew dosyası en dışta yoksa alt klasörleri tarayıp ana dizine çeker
         if [ ! -f gradlew ]; then
           echo "gradlew ana dizinde bulunamadi, alt klasorler taraniyor..."
           find . -name "gradlew" -exec mv {} . \;
