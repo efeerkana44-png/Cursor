@@ -14,19 +14,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract ZIP
+      - name: Extract Cursor.zip
         shell: bash
         run: |
-          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "endlesscursor*.zip" | head -n 1)
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "endlesscursor ZIP bulunamadı!"
+          if [ ! -f "Cursor.zip" ]; then
+            echo "HATA: Cursor.zip bulunamadı!"
+            echo "Repository dosyaları:"
+            find . -maxdepth 3 -type f -print
             exit 1
           fi
 
-          echo "ZIP: $ZIP_FILE"
           mkdir -p endlesscursor
-          unzip -q "$ZIP_FILE" -d endlesscursor
+          unzip -o "Cursor.zip" -d endlesscursor
 
       - name: Find Gradle project
         shell: bash
@@ -34,13 +33,11 @@ jobs:
           GRADLEW=$(find endlesscursor -type f -name "gradlew" -print -quit)
 
           if [ -z "$GRADLEW" ]; then
-            echo "gradlew bulunamadı!"
+            echo "HATA: Cursor.zip içinde gradlew bulunamadı!"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$GRADLEW")
-
-          echo "Proje: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Setup Java
@@ -57,11 +54,7 @@ jobs:
           cd "$PROJECT_DIR"
           ./gradlew build --no-daemon
 
-      - name: Show JAR files
-        run: |
-          find "$PROJECT_DIR/build/libs" -type f -name "*.jar" -print
-
-      - name: Upload endlesscursor JAR
+      - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: endlesscursor
