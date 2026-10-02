@@ -1,69 +1,69 @@
-name: Zip Dosyasini Ac ve mrendlesscr Olarak Derle
+name: Build endlesscursor
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-    - name: Kodlari Cek
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Java 17 Kur
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Find and extract ZIP
+        shell: bash
+        run: |
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "endlesscursor*.zip" | head -n 1)
 
-    - name: Depodaki Zip Dosyasını Bul ve İçini Tamamen Aç
-      run: |
-        # Klasörde herhangi bir zip dosyası var mı diye kontrol et
-        if ls *.zip 1> /dev/null 2>&1; then
-          echo "Zip dosyasi bulundu, icerik cikartiliyor..."
-          unzip -o *.zip
-          rm *.zip
-          
-          # Hata veren parantezli kod yerine standart döngü ile alt klasör kontrolü yapıyoruz
-          for dir in *; do
-            if [ -d "$dir" ] && [ "$dir" != "src" ] && [ "$dir" != "gradle" ]; then
-              echo "Dosyalar bir alt klasorde kalmis, ana dizine cikartiliyor..."
-              mv "$dir"/* . 2>/dev/null || true
-              mv "$dir"/.* . 2>/dev/null || true
-              break
-            fi
-          done
-        else
-          echo "Ana dizinde herhangi bir zip dosyasi bulunamadi!"
-        fi
+          if [ -z "$ZIP_FILE" ]; then
+            echo "endlesscursor ZIP bulunamadı!"
+            exit 1
+          fi
 
-    - name: Gradle Yetkisi Ver
-      run: |
-        # gradlew dosyası en dışta yoksa alt klasörleri tarayıp ana dizine çeker
-        if [ ! -f gradlew ]; then
-          echo "gradlew ana dizinde bulunamadi, alt klasorler taraniyor..."
-          find . -name "gradlew" -exec mv {} . \;
-        fi
-        chmod +x gradlew
+          echo "ZIP: $ZIP_FILE"
+          mkdir -p endlesscursor
+          unzip -q "$ZIP_FILE" -d endlesscursor
 
-    - name: Modu Paketle (Jar Olustur)
-      run: ./gradlew build
+      - name: Find Gradle project
+        shell: bash
+        run: |
+          GRADLEW=$(find endlesscursor -type f -name "gradlew" -print -quit)
 
-    - name: Benzersiz Versiyon Etiketi Olustur
-      id: tag
-      run: echo "TAG_NAME=v1.0.0-${{ github.run_number }}" >> $GITHUB_ENV
+          if [ -z "$GRADLEW" ]; then
+            echo "gradlew bulunamadı!"
+            exit 1
+          fi
 
-    - name: Sikistirmadan Direkt Ham Jar Dosyasini Yayinla
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ env.TAG_NAME }}
-        name: Mr. Endless Cursor Sürümü #${{ github.run_number }}
-        draft: false
-        prerelease: false
-        files: build/libs/*.jar
-        
+          PROJECT_DIR=$(dirname "$GRADLEW")
+
+          echo "Proje: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Build endlesscursor
+        shell: bash
+        run: |
+          chmod +x "$PROJECT_DIR/gradlew"
+          cd "$PROJECT_DIR"
+          ./gradlew build --no-daemon
+
+      - name: Show JAR files
+        run: |
+          find "$PROJECT_DIR/build/libs" -type f -name "*.jar" -print
+
+      - name: Upload endlesscursor JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: endlesscursor
+          path: ${{ env.PROJECT_DIR }}/build/libs/*.jar
+          if-no-files-found: error
